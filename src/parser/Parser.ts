@@ -45,7 +45,9 @@ export class Parser {
       } else if (this.peek().type === TokenType.NESTED_OBJECT) {
         this.consume(TokenType.NESTED_OBJECT);
         const nestedObj = this.parseObject(currentIndent);
-        Object.assign(obj, nestedObj);
+        // Instead of Object.assign, we'll create a new nested object
+        const key = Object.keys(nestedObj)[0];
+        obj[key] = nestedObj[key];
       } else {
         break;
       }
