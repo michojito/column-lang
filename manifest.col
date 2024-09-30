@@ -1,0 +1,47 @@
+// This is a manifest file to visualize the language features of the Column language.
+// For this example, I will simulate a configation file.
+
+
+/! This is the Copyright notice
+/! This is the License notice
+/! This is the Author notice
+// The above lines are always on top of the file.
+// They serves as notice for the copyright, license and author.
+
+name: MyApp
+version: 1.0.0
+main: main.ts
+description: |
+    This is a multi-line description
+    for the sample app that preserves
+    line breaks.
+
+note: <
+    This is a long note
+    that will be folded into a single line.
+
+main: main.ts
+debug: true
+keywords:
+    - Data Structures
+    - Simple
+    - Easy
+    - Readable
+
+credentials:
+    > name: github
+      username: $_GITHUB_USERNAME
+      token: $_GITHUB_TOKEN
+
+scripts:
+    > name: build
+      description: Build the app
+      command: tsc
+
+dependencies:
+    > name: column-lang
+      version: 1.0.0
+      repository: https://github.com/MrMichelr/column-lang
+    > name: typescript
+      version: 4.0.2
+      repository: https://github.com/Microsoft/TypeScript

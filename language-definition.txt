@@ -1,0 +1,64 @@
+1. Basic Structure:
+   - Each line represents a key-value pair or a structural element
+   - Indentation is significant and used to define nested structures
+
+2. Key-Value Pairs:
+   - Format: key: value
+   - Example: name: John Doe
+
+3. Lists:
+   - Use Undentation and - to denote list items
+   - Example:
+     fruits:
+       - apple
+       - banana
+       - orange
+
+4. Nested Structures:
+   - Use indentation and > to represent a nested structure
+   - Example:
+     person:
+        > name: John Doe
+          age: 30
+          address:
+            > street: 123 Main St
+              city: Anytown
+        > name: Jane Doe
+          age: 25
+          address:
+            > street: 456 Elm St
+              city: Anytown
+
+5. Data Types:
+   - Strings: No quotes needed unless the string contains special characters
+   - Numbers: Integers and floats are supported
+   - Booleans: true and false
+   - Null: ? or null
+
+6. Comments:
+   - Use // for single-line comments
+   - Example: // This is a comment
+
+7. Multi-line Strings:
+   - Use | for multi-line strings with preserved newlines
+   - Use < for multi-line strings with folded newlines
+   - Example:
+     description: |
+       This is a multi-line
+       description that preserves
+       line breaks.
+
+8. Special Characters:
+   - If a value contains special characters, enclose it in quotes
+   - Example: message: "Hello, World!"
+
+10. File Extension:
+    - Use .col for Column files
+
+11. Environment Variables:
+    - Use $_ to reference environment variables
+    - Example: api_key: $_API_KEY
+
+12. Raw Content:
+    - Use ` to represent raw content
+    - Example: regex: `\d+\.\d+`
