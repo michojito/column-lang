@@ -1,147 +1,141 @@
+// Import necessary types from Token file
 import { Token, TokenType } from './Token';
 
+// Lexer class for tokenizing input
 export class Lexer {
-  private tokens: Token[] = [];
-  private currentLine = 0;
-  private currentColumn = 0;
-  private inMultilineString = false;
-  private multilineStringType: '|' | '<' | null = null;
-  private multilineStringBaseIndent = 0;
-  private multilineStringContent = '';
-  private indentStack: number[] = [0];
+  private input: string; // Input string to be tokenized
+  private position: number = 0; // Current position in the input
+  private line: number = 1; // Current line number
+  private column: number = 0; // Current column number
+  private indentStack: number[] = [0]; // Stack to keep track of indentation levels
 
-  constructor(private input: string) { }
+  // Constructor to initialize the Lexer with input
+  constructor(input: string) {
+    this.input = input;
+  }
 
+  // Method to tokenize the entire input
   tokenize(): Token[] {
-    const lines = this.input.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      this.currentLine = i;
-      this.currentColumn = 0;
-      this.tokenizeLine(lines[i]);
-    }
-    this.handleDedents(0);
-    if (this.inMultilineString) {
-      this.endMultilineString();
-    }
-    this.addToken(TokenType.EOF, '');
-    return this.tokens;
-  }
+    const tokens: Token[] = [];
+    let token: Token | null;
 
-  private tokenizeLine(line: string): void {
-    const indent = line.match(/^(\s*)/)?.[1]?.length ?? 0;
-
-    if (!this.inMultilineString) {
-      this.handleIndentation(indent);
+    // Continue tokenizing until no more tokens are found
+    while ((token = this.nextToken()) !== null) {
+      tokens.push(token);
     }
 
-    const trimmedLine = line.trim();
-    if (trimmedLine.length === 0) {
-      if (!this.inMultilineString) {
-        this.addToken(TokenType.NEWLINE, '\n');
-      }
-      return;
-    }
-
-    if (this.inMultilineString) {
-      this.tokenizeMultilineStringContent(line);
-    } else if (trimmedLine.startsWith('//') || trimmedLine.startsWith('/!')) {
-      this.addToken(TokenType.SPECIAL_COMMENT, trimmedLine);
-    } else if (trimmedLine.startsWith('-')) {
-      this.tokenizeListItem(trimmedLine);
-    } else if (trimmedLine.startsWith('>')) {
-      this.tokenizeNestedObject(trimmedLine);
-    } else {
-      this.tokenizeKeyValue(trimmedLine);
-    }
-
-    if (!this.inMultilineString) {
-      this.addToken(TokenType.NEWLINE, '\n');
-    }
-  }
-
-  private handleIndentation(indent: number): void {
-    const currentIndent = this.indentStack[this.indentStack.length - 1];
-    if (indent > currentIndent) {
-      this.addToken(TokenType.INDENT, ' '.repeat(indent - currentIndent));
-      this.indentStack.push(indent);
-    } else if (indent < currentIndent) {
-      this.handleDedents(indent);
-    }
-  }
-
-  private handleDedents(indent: number): void {
-    while (this.indentStack[this.indentStack.length - 1] > indent) {
+    // Add dedents for any remaining indents
+    while (this.indentStack.length > 1) {
+      tokens.push(new Token(TokenType.DEDENT, '', this.line, this.column));
       this.indentStack.pop();
-      this.addToken(TokenType.DEDENT, '');
     }
+
+    // Add EOF token at the end
+    tokens.push(new Token(TokenType.EOF, '', this.line, this.column));
+    return tokens;
   }
 
-  private tokenizeMultilineStringContent(line: string): void {
-    const currentIndent = line.match(/^(\s*)/)?.[1]?.length ?? 0;
-
-    if (currentIndent < this.multilineStringBaseIndent) {
-      this.endMultilineString();
-      this.tokenizeLine(line);
-    } else {
-      const content = line.slice(this.multilineStringBaseIndent);
-      this.multilineStringContent += (this.multilineStringContent ? '\n' : '') + content;
+  // Method to get the next token
+  private nextToken(): Token | null {
+    // Return null if end of input is reached
+    if (this.position >= this.input.length) {
+      return null;
     }
-  }
 
-  private endMultilineString(): void {
-    if (this.multilineStringContent) {
-      this.multilineStringContent = this.multilineStringContent.replace(/\n$/, '');
-      this.addToken(TokenType.VALUE, this.multilineStringContent);
+    // Handle indentation at the start of each line
+    if (this.column === 0) {
+      const indentToken = this.handleIndentation();
+      if (indentToken) return indentToken;
     }
-    this.inMultilineString = false;
-    this.multilineStringType = null;
-    this.multilineStringContent = '';
-  }
 
-  private tokenizeListItem(line: string): void {
-    this.addToken(TokenType.LIST_ITEM, '-');
-    const value = line.slice(1).trim();
-    if (value) {
-      this.tokenizeKeyValue(value);
+    const char = this.current();
+
+    // Handle newline characters
+    if (char === '\n') {
+      return this.handleNewline();
     }
-  }
 
-  private tokenizeNestedObject(line: string): void {
-    this.addToken(TokenType.NESTED_OBJECT, '>');
-    const rest = line.slice(1).trim();
-    if (rest) {
-      this.tokenizeKeyValue(rest);
+    // Handle keys
+    if (this.isKeyStart(char)) {
+      return this.readKey();
     }
-  }
 
-  private tokenizeKeyValue(line: string): void {
-    const colonIndex = line.indexOf(':');
-    if (colonIndex !== -1) {
-      const key = line.slice(0, colonIndex).trim();
-      this.addToken(TokenType.KEY, key);
-      this.addToken(TokenType.COLON, ':');
-
-      const value = line.slice(colonIndex + 1).trim();
-      if (value === '|' || value === '<') {
-        this.startMultilineString(value as '|' | '<');
-      } else if (value) {
-        this.addToken(TokenType.VALUE, value);
-      }
-    } else {
-      this.addToken(TokenType.VALUE, line);
+    // Handle colon (key-value separator)
+    if (char === ':') {
+      this.advance();
+      return new Token(TokenType.COLON, ':', this.line, this.column - 1);
     }
+
+    // If we're not at the start of the line and not reading a key, it must be a value
+    return this.readValue();
   }
 
-  private startMultilineString(type: '|' | '<'): void {
-    this.inMultilineString = true;
-    this.multilineStringType = type;
-    this.multilineStringBaseIndent = this.indentStack[this.indentStack.length - 1];
-    this.multilineStringContent = '';
-    this.addToken(TokenType.MULTILINE_START, type);
+  // Method to handle indentation
+  private handleIndentation(): Token | null {
+    let spaces = 0;
+    while (this.position < this.input.length && this.current() === ' ') {
+      spaces++;
+      this.advance();
+    }
+
+    const currentIndent = spaces;
+    const previousIndent = this.indentStack[this.indentStack.length - 1];
+
+    // Handle increase in indentation
+    if (currentIndent > previousIndent) {
+      this.indentStack.push(currentIndent);
+      return new Token(TokenType.INDENT, ' '.repeat(currentIndent), this.line, this.column - currentIndent);
+    } else if (currentIndent < previousIndent) {
+      // Handle decrease in indentation
+      this.indentStack.pop();
+      return new Token(TokenType.DEDENT, '', this.line, this.column);
+    }
+
+    // Return null if there's no change in indentation
+    return null;
   }
 
-  private addToken(type: TokenType, value: string): void {
-    this.tokens.push({ type, value, line: this.currentLine, column: this.currentColumn });
-    this.currentColumn += value.length;
+  // Method to check if a character can start a key
+  private isKeyStart(char: string): boolean {
+    return /[a-zA-Z0-9_-]/.test(char);
+  }
+
+  // Method to read a key
+  private readKey(): Token {
+    const start = this.position;
+    while (this.position < this.input.length && this.current() !== ':' && this.current() !== '\n') {
+      this.advance();
+    }
+    const content = this.input.slice(start, this.position).trim();
+    return new Token(TokenType.KEY, content, this.line, this.column - content.length);
+  }
+
+  // Method to read a value
+  private readValue(): Token {
+    const start = this.position;
+    while (this.position < this.input.length && this.current() !== '\n') {
+      this.advance();
+    }
+    const content = this.input.slice(start, this.position).trim();
+    return new Token(TokenType.VALUE, content, this.line, this.column - content.length);
+  }
+
+  // Method to handle newline characters
+  private handleNewline(): Token {
+    this.advance();
+    this.line++;
+    this.column = 0;
+    return new Token(TokenType.NEWLINE, '\n', this.line - 1, this.column);
+  }
+
+  // Method to get the current character
+  private current(): string {
+    return this.input[this.position];
+  }
+
+  // Method to advance the position and column
+  private advance(): void {
+    this.position++;
+    this.column++;
   }
 }

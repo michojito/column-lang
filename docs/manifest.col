@@ -1,0 +1,37 @@
+/! Copyright (c) 2024 Column Language Contributors
+/! License: MIT
+
+@- column.lang.manifest
+
+name: Column
+version: 1.0.0
+description: |
+  Column is a simple, readable configuration language
+  designed for ease of use and flexibility.
+
+maintainers:
+  - name: John Doe
+    email: john@example.com
+  - name: Jane Smith
+    email: jane@example.com
+
+features:
+  - Nested structures
+  - Lists
+  - Multiline strings
+  - Environment variables
+  - Raw content
+
+file_extension: .col
+
+/=> TODO: Add more comprehensive documentation
+
+supported_output_formats:
+  - JSON
+  - YAML
+  - XML
+
+homepage: https://column-lang.org
+repository: https://github.com/column-lang/column-lang
+
+/=> IMPORTANT: Review versioning strategy before 1.0 release

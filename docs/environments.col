@@ -1,0 +1,31 @@
+/! Copyright (c) 2024 Column Language Contributors
+/! License: MIT
+
+@/ Development
+env_name: development
+debug: true
+log_level: debug
+database:
+    host: localhost
+    port: 5432
+    name: column_dev
+
+@/ Staging
+env_name: staging
+debug: false
+log_level: info
+database:
+    host: staging-db.column-lang.org
+    port: 5432
+    name: column_staging
+
+@/ Production
+env_name: production
+debug: false
+log_level: warn
+database:
+    host: db.column-lang.org
+    port: 5432
+    name: column_prod
+
+/=> IMPORTANT: Ensure proper security measures for production environment

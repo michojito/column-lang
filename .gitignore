@@ -17,3 +17,6 @@ logs/
 
 # Temporary files
 *.tmp
+
+# test snapshots
+tests/__snapshots__/
