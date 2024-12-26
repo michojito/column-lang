@@ -4,19 +4,15 @@ node_modules/
 # Build output
 dist/
 
-# Logs
-logs/
+#Logs
 *.log
+logs/
 
 # Environment variables
 .env
 
 # IDE specific files
-.idea/
 .vscode/
+coverage/
 
-# Temporary files
-*.tmp
 
-# test snapshots
-tests/__snapshots__/

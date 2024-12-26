@@ -1,0 +1,21 @@
+/! Column-Version: 1.0
+/! Copyright 2023 Example Corp.
+
+// Basic configuration example
+name: "My Project"
+version: 1.0
+settings:
+  debug: true
+  environment: development
+  database:
+    host:  || localhost
+    port: 5432
+    credentials:
+      username: admin
+      password: 
+
+dependencies:
+  - name: typescript
+    version: ^5.0.0
+  - name: jest
+    version: ^29.0.0
