@@ -112,7 +112,7 @@ export function convertValue(value: string, type: DataType): any {
       // Convert time string to Date object (today's date with specified time)
       const [hours, minutes, seconds = "0"] = value.split(":").map(Number);
       const date = new Date();
-      date.setHours(hours, minutes, parseInt(seconds, 10), 0);
+      date.setHours(hours, minutes, Number(seconds), 0);
       return date;
 
     case DataType.DATETIME:

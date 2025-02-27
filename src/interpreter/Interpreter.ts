@@ -20,7 +20,7 @@ import { InterpretationError } from "../utils/errors";
  * Interface for interpretation options.
  */
 export interface InterpretOptions {
-  env?: Record<string, string>;
+  env?: Record<string, string | undefined>;
   includeMeta?: boolean;
 }
 

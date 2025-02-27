@@ -127,10 +127,15 @@ export class Tokenizer {
         this.advance();
 
         // Handle common escape sequences
-        if (this.current === "n") value += "\n";
-        else if (this.current === "t") value += "\t";
-        else if (this.current === "r") value += "\r";
-        else value += this.current;
+        if (this.current === "n") {
+          value += "\n";
+        } else if (this.current === "t") {
+          value += "\t";
+        } else if (this.current === "r") {
+          value += "\r";
+        } else {
+          value += this.current;
+        }
 
         this.advance();
       } else {
@@ -243,7 +248,7 @@ export class Tokenizer {
     }
 
     // Read namespace name
-    while (this.hasMore && this.current !== "\n" && this.current !== "//") {
+    while (this.hasMore && this.current !== "\n" && this.current !== "/") {
       value += this.advance();
     }
 
@@ -272,7 +277,7 @@ export class Tokenizer {
     }
 
     // Read section name
-    while (this.hasMore && this.current !== "\n" && this.current !== "//") {
+    while (this.hasMore && this.current !== "\n" && this.current !== "/") {
       value += this.advance();
     }
 
@@ -345,7 +350,11 @@ export class Tokenizer {
     }
 
     // Read value until end of line or comment
-    while (this.hasMore && this.current !== "\n" && this.current !== "//") {
+    while (
+      this.hasMore &&
+      this.current !== "\n" &&
+      !this.current.startsWith("//")
+    ) {
       value += this.advance();
     }
 
@@ -418,7 +427,11 @@ export class Tokenizer {
       value += this.advance() + this.advance(); // Add ||
 
       // Read default value
-      while (this.hasMore && this.current !== "\n" && this.current !== "//") {
+      while (
+        this.hasMore &&
+        this.current !== "\n" &&
+        !this.current.startsWith("//")
+      ) {
         value += this.advance();
       }
     }
