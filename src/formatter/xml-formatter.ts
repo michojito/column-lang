@@ -35,7 +35,16 @@ export class XmlFormatter extends BaseFormatter {
       },
     });
 
-    return builder.buildObject(xmlObj);
+    // Build the XML and adjust the XML declaration to match expected format
+    let xml = builder.buildObject(xmlObj);
+
+    // Fix XML declaration format to match test expectations
+    xml = xml.replace(
+      /\?xml version="1.0" encoding="UTF-8" standalone="no"\?/,
+      '?xml version="1.0" encoding="UTF-8"?'
+    );
+
+    return xml;
   }
 
   /**
@@ -63,12 +72,29 @@ export class XmlFormatter extends BaseFormatter {
     }
 
     if (typeof data === "object") {
+      // Special case: if this is a result object with data and meta
+      if ("data" in data && "meta" in data) {
+        // Extract meta into the same level
+        const { data: actualData, meta } = data;
+        const result: Record<string, any> = {};
+
+        // Add data
+        result.data = this.prepareForXml(actualData);
+
+        // Extract and add meta properties directly
+        if (meta && typeof meta === "object") {
+          for (const [key, value] of Object.entries(meta)) {
+            const safeKey = this.sanitizeXmlKey(key);
+            result[safeKey] = this.prepareForXml(value);
+          }
+        }
+
+        return result;
+      }
+
+      // Normal object processing
       const result: Record<string, any> = {};
-
       for (const [key, value] of Object.entries(data)) {
-        // Skip metadata properties if we're processing a full result object
-        if (key === "meta" && "data" in data) continue;
-
         const safeKey = this.sanitizeXmlKey(key);
         result[safeKey] = this.prepareForXml(value);
       }

@@ -203,6 +203,30 @@ export class Parser {
       return this.parseNotice();
     }
 
+    if (this.check(TokenType.NAMESPACE_DECLARATION)) {
+      return this.parseNamespaceDeclaration();
+    }
+
+    if (this.check(TokenType.SECTION_DECLARATION)) {
+      return this.parseSectionDeclaration();
+    }
+
+    if (this.check(TokenType.RAW_CONTENT)) {
+      return this.parseRawContent();
+    }
+
+    // Skip INDENT and DEDENT tokens as they're handled elsewhere
+    if (this.check(TokenType.INDENT) || this.check(TokenType.DEDENT)) {
+      this.advance();
+      return this.parseStatement();
+    }
+
+    // Skip NEWLINE tokens at the top level
+    if (this.check(TokenType.NEWLINE)) {
+      this.advance();
+      return this.parseStatement();
+    }
+
     if (this.check(TokenType.EOF)) {
       return null;
     }
@@ -218,13 +242,30 @@ export class Parser {
    * @returns The parsed key-value node
    */
   private parseKeyValue(): KeyValueNode {
+    // First get the key token
     const keyToken = this.consume(TokenType.KEY, "Expected key");
-    this.consume(TokenType.COLON, "Expected ':' after key");
+
+    // Look for the colon with more flexible handling
+    // Consume it if present, otherwise throw a clear error
+    if (this.check(TokenType.COLON)) {
+      this.advance();
+    } else {
+      throw new ParseError(
+        `Expected ':' after key`,
+        this.currentToken.position
+      );
+    }
+
+    // Skip any newlines after the colon
+    while (this.check(TokenType.NEWLINE)) {
+      this.advance();
+    }
 
     let value: ValueNode | null = null;
 
-    // Check if there's a value after the colon
+    // Check for value type
     if (this.check(TokenType.VALUE)) {
+      // Handle simple value
       const valueToken = this.advance();
 
       // Check for type annotation
@@ -233,12 +274,10 @@ export class Parser {
       );
 
       if (typeAnnotation) {
-        // Extract the actual value after the type annotation
+        // Handle type annotation...
         const actualValue = valueToken.value
           .substring(typeAnnotation.value.length + 2)
-          .trim(); // +2 for {}
-
-        // Create the value with the detected type
+          .trim();
         const detectedType = detectType(actualValue);
         const convertedValue = convertValue(actualValue, typeAnnotation.type);
 
@@ -258,7 +297,7 @@ export class Parser {
             : "string"
         );
       } else {
-        // No type annotation, detect the type automatically
+        // No type annotation
         const detectedType = detectType(valueToken.value);
         const convertedValue = convertValue(valueToken.value, detectedType);
 
@@ -279,24 +318,37 @@ export class Parser {
         );
       }
     } else if (this.check(TokenType.MULTILINE_START)) {
+      // Handle multiline string
       const multilineStart = this.advance();
       const format = multilineStart.value as "|" | "<" | "|+" | "`";
 
-      // Collect the multiline content
+      // Collect multiline content
       let content = "";
+
+      // Skip newline after multiline start if present
+      if (this.check(TokenType.NEWLINE)) {
+        this.advance();
+      }
 
       while (this.check(TokenType.MULTILINE_STRING)) {
         const lineToken = this.advance();
         content += lineToken.value;
 
-        // Add a newline unless it's the last line
+        // Add newline unless it's the last line
         if (this.check(TokenType.MULTILINE_STRING)) {
           content += "\n";
         }
       }
 
-      // Ensure we have a MULTILINE_END token
-      this.consume(TokenType.MULTILINE_END, "Expected end of multiline string");
+      // Handle newlines before the end token
+      while (this.check(TokenType.NEWLINE)) {
+        this.advance();
+      }
+
+      // Check for MULTILINE_END token
+      if (this.check(TokenType.MULTILINE_END)) {
+        this.advance();
+      }
 
       const multilineNode = createMultilineString(
         multilineStart.position,
@@ -305,10 +357,12 @@ export class Parser {
       );
       value = createValue(multilineStart.position, multilineNode, "complex");
     } else if (this.check(TokenType.RAW_CONTENT)) {
+      // Handle raw content
       const rawToken = this.advance();
       const rawNode = createRawContent(rawToken.position, rawToken.value);
       value = createValue(rawToken.position, rawNode, "complex");
     } else if (this.check(TokenType.ENV_VAR)) {
+      // Handle environment variable
       const envVarToken = this.advance();
       const parts = envVarToken.value.split("||").map((part) => part.trim());
 
@@ -317,36 +371,38 @@ export class Parser {
 
       const envVarNode = createEnvVar(envVarToken.position, name, defaultValue);
       value = createValue(envVarToken.position, envVarNode, "complex");
+    } else if (this.check(TokenType.INDENT)) {
+      // This is an empty object with nested structure
+      value = createValue(keyToken.position, {}, "complex");
     }
 
-    // Check for a potential nested structure (looking for indent after the newline)
+    // Create the key-value node
     const node = createKeyValue(keyToken.position, keyToken.value, value);
 
-    // Consume the newline after the key-value pair
-    if (this.check(TokenType.NEWLINE)) {
-      this.advance();
+    // Handle nested structure
+    if (this.check(TokenType.INDENT)) {
+      this.advance(); // Consume the INDENT token
 
-      // Check for indentation indicating nested structure
-      if (this.check(TokenType.INDENT)) {
-        const indent = this.advance();
+      // Parse the nested children
+      const children: ASTNode[] = [];
 
-        // Parse the nested children
-        const children: ASTNode[] = [];
-
-        while (this.check(TokenType.KEY) || this.check(TokenType.LIST_ITEM)) {
-          const child = this.parseStatement();
-          if (child) {
-            children.push(child);
-          }
-
-          // If we have a dedent token, we're done with this level
-          if (this.check(TokenType.DEDENT)) {
-            this.advance();
-            break;
-          }
+      while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
+        const child = this.parseStatement();
+        if (child) {
+          children.push(child);
         }
+      }
 
-        node.children = children;
+      // Consume the DEDENT token if present
+      if (this.check(TokenType.DEDENT)) {
+        this.advance();
+      }
+
+      node.children = children;
+    } else {
+      // Consume any newlines after the value
+      while (this.check(TokenType.NEWLINE)) {
+        this.advance();
       }
     }
 
@@ -360,12 +416,89 @@ export class Parser {
   private parseListItem(): ListItemNode {
     const itemToken = this.consume(TokenType.LIST_ITEM, "Expected list item");
 
+    // Skip any newlines after the list item
+    while (this.check(TokenType.NEWLINE)) {
+      this.advance();
+    }
+
     // Check what follows the list item marker
     let itemValue: ValueNode | KeyValueNode;
 
     if (this.check(TokenType.KEY)) {
-      // This is a key-value pair list item
-      itemValue = this.parseKeyValue();
+      // This could be a key-value pair or just a simple value
+      const keyToken = this.advance();
+
+      // If followed by a colon, it's a key-value pair
+      if (this.check(TokenType.COLON)) {
+        this.advance(); // Consume the colon
+
+        // Parse the value after the colon
+        let value: ValueNode | null = null;
+
+        if (this.check(TokenType.VALUE)) {
+          const valueToken = this.advance();
+          const detectedType = detectType(valueToken.value);
+          const convertedValue = convertValue(valueToken.value, detectedType);
+
+          value = createValue(
+            valueToken.position,
+            convertedValue,
+            detectedType === DataType.NULL
+              ? "null"
+              : detectedType === DataType.BOOLEAN
+              ? "boolean"
+              : detectedType === DataType.INT || detectedType === DataType.FLOAT
+              ? "number"
+              : detectedType === DataType.DATE ||
+                detectedType === DataType.TIME ||
+                detectedType === DataType.DATETIME
+              ? "date"
+              : "string"
+          );
+        }
+
+        // Create the key-value pair
+        itemValue = createKeyValue(keyToken.position, keyToken.value, value);
+
+        // Check for nested structure
+        if (this.check(TokenType.INDENT)) {
+          this.advance();
+          const children: ASTNode[] = [];
+
+          while (!this.check(TokenType.DEDENT) && !this.isAtEnd()) {
+            const child = this.parseStatement();
+            if (child) {
+              children.push(child);
+            }
+          }
+
+          if (this.check(TokenType.DEDENT)) {
+            this.advance();
+          }
+
+          itemValue.children = children;
+        }
+      } else {
+        // It's just a simple value
+        const detectedType = detectType(keyToken.value);
+        const convertedValue = convertValue(keyToken.value, detectedType);
+
+        itemValue = createValue(
+          keyToken.position,
+          convertedValue,
+          detectedType === DataType.NULL
+            ? "null"
+            : detectedType === DataType.BOOLEAN
+            ? "boolean"
+            : detectedType === DataType.INT || detectedType === DataType.FLOAT
+            ? "number"
+            : detectedType === DataType.DATE ||
+              detectedType === DataType.TIME ||
+              detectedType === DataType.DATETIME
+            ? "date"
+            : "string"
+        );
+      }
     } else if (this.check(TokenType.VALUE)) {
       // This is a simple value list item
       const valueToken = this.advance();
@@ -388,10 +521,8 @@ export class Parser {
           : "string"
       );
     } else {
-      throw new ParseError(
-        `Expected value after list item marker`,
-        this.currentToken.position
-      );
+      // Empty list item
+      itemValue = createValue(itemToken.position, "", "string");
     }
 
     return createListItem(itemToken.position, itemValue);
@@ -499,5 +630,17 @@ export class Parser {
     } catch (e) {
       return null;
     }
+  }
+
+  /**
+   * Parses a raw content node.
+   * @returns The parsed raw content node
+   */
+  private parseRawContent(): RawContentNode {
+    const rawToken = this.consume(
+      TokenType.RAW_CONTENT,
+      "Expected raw content"
+    );
+    return createRawContent(rawToken.position, rawToken.value);
   }
 }

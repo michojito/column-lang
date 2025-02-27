@@ -3,6 +3,27 @@ import { Parser } from "../src/parser/parser";
 import { Lexer } from "../src/lexer/Lexer";
 import { DocumentNode } from "../src/parser/ast";
 
+/**
+ * Helper function to interpret Column language content
+ * @param content - The Column language content to interpret
+ * @param options - Interpretation options
+ * @returns The interpreted result
+ */
+function interpretContent(content: string, options = {}): any {
+  try {
+    const lexer = new Lexer(content);
+    const tokens = lexer.lex();
+
+    const parser = new Parser(tokens);
+    const ast = parser.parse();
+    const interpreter = new Interpreter(options);
+    return interpreter.interpret(ast);
+  } catch (error) {
+    console.error("Error interpreting content:", error);
+    throw error;
+  }
+}
+
 describe("Interpreter", () => {
   function interpretContent(content: string, options = {}): any {
     const lexer = new Lexer(content);

@@ -93,13 +93,21 @@ export class Tokenizer {
 
   /**
    * Reads an identifier (key) from the source.
+   * This handles alphanumeric characters, underscores, hyphens, and periods.
    * @returns A token of type KEY
    */
   private readIdentifier(): Token {
     let value = "";
     const startColumn = this.position.column;
 
-    while (this.hasMore && /[a-zA-Z0-9_-]/.test(this.current)) {
+    // Allow a wider range of characters in identifiers:
+    // - alphanumeric characters (a-z, A-Z, 0-9)
+    // - underscores (_)
+    // - hyphens (-)
+    // - periods (.) for version numbers
+    // - carets (^) for version ranges
+    // - plus (+) for version specifiers
+    while (this.hasMore && /[a-zA-Z0-9_\-\.\^+]/.test(this.current)) {
       value += this.advance();
     }
 
@@ -329,13 +337,27 @@ export class Tokenizer {
       this.advance();
     }
 
+    // Handle multiline start with plus (|+)
+    if (this.current === "|" && this.next === "+") {
+      const position = { ...this.position };
+      this.advance(); // Skip |
+      this.advance(); // Skip +
+      return new Token(TokenType.MULTILINE_START, "|+", {
+        line: position.line,
+        column: position.column,
+        index: position.index,
+      });
+    }
+
     // Handle multiline start
     if (this.current === "|" || this.current === "<") {
-      const marker = this.advance();
+      const marker = this.current;
+      const position = { ...this.position };
+      this.advance();
       return new Token(TokenType.MULTILINE_START, marker, {
-        line: this.position.line,
-        column: startColumn,
-        index: this.position.index - 1,
+        line: position.line,
+        column: position.column,
+        index: position.index,
       });
     }
 
@@ -350,10 +372,14 @@ export class Tokenizer {
     }
 
     // Read value until end of line or comment
+    // Allow all printable characters in values
     while (
       this.hasMore &&
       this.current !== "\n" &&
-      !this.current.startsWith("//")
+      !(
+        this.current === "/" &&
+        (this.next === "/" || this.next === "=" || this.next === "!")
+      )
     ) {
       value += this.advance();
     }
@@ -422,15 +448,30 @@ export class Tokenizer {
       value += this.advance();
     }
 
-    // Check for default value
+    // Skip whitespace
+    while (this.hasMore && (this.current === " " || this.current === "\t")) {
+      this.advance();
+    }
+
+    // Check for default value (||)
     if (this.current === "|" && this.next === "|") {
-      value += this.advance() + this.advance(); // Add ||
+      value += " ||";
+      this.advance(); // Skip first |
+      this.advance(); // Skip second |
+
+      // Skip whitespace after ||
+      while (this.hasMore && (this.current === " " || this.current === "\t")) {
+        value += this.advance();
+      }
 
       // Read default value
       while (
         this.hasMore &&
         this.current !== "\n" &&
-        !this.current.startsWith("//")
+        !(
+          this.current === "/" &&
+          (this.next === "/" || this.next === "=" || this.next === "!")
+        )
       ) {
         value += this.advance();
       }
@@ -439,7 +480,7 @@ export class Tokenizer {
     return new Token(TokenType.ENV_VAR, value, {
       line: this.position.line,
       column: startColumn,
-      index: this.position.index - value.length + 2, // +2 to offset the $_
+      index: this.position.index - value.length,
     });
   }
 
@@ -464,6 +505,30 @@ export class Tokenizer {
       const token = this.createToken(TokenType.NEWLINE, "\n");
       this.advance();
       return token;
+    }
+
+    // Handle multiline start with plus (|+)
+    if (this.current === "|" && this.next === "+") {
+      const position = { ...this.position };
+      this.advance(); // Skip |
+      this.advance(); // Skip +
+      return new Token(TokenType.MULTILINE_START, "|+", {
+        line: position.line,
+        column: position.column,
+        index: position.index,
+      });
+    }
+
+    // Handle multiline start
+    if (this.current === "|" || this.current === "<") {
+      const marker = this.current;
+      const position = { ...this.position };
+      this.advance();
+      return new Token(TokenType.MULTILINE_START, marker, {
+        line: position.line,
+        column: position.column,
+        index: position.index,
+      });
     }
 
     // Handle colon
@@ -501,6 +566,16 @@ export class Tokenizer {
     // Handle quoted key
     if (this.current === '"') {
       return this.readQuotedKey();
+    }
+
+    // Handle environment variable
+    if (this.current === "$" && this.next === "_") {
+      return this.readEnvVar();
+    }
+
+    // Handle raw content
+    if (this.current === "`") {
+      return this.readRawContent();
     }
 
     // Handle key
